@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "workspace": {"rootDir": "../../c/embed-workspace"},
+  "environment": {
+    "id": "stm32f407vet6",
+    "rootDir": "../../c/embed-workspace/envs/stm32f407vet6",
+    "toolchain": {"file": "../../c/embed-workspace/envs/stm32f407vet6/cmake/arm-none-eabi.cmake"}
+  },
+  "project": {
+    "name": "demo_app",
+    "sourceDirs": ["src"],
+    "includeDirs": ["inc"],
+    "scanSources": true,
+    "generateExampleMain": true,
+    "compileStandard": "gnu11"
+  },
+  "libraries": [
+    {
+      "name": "cj131",
+      "source": {
+        "type": "local-static",
+        "artifact": "../../c/embed-workspace/libs/cj131/output/stm32f407vet6/libcj131.a",
+        "includeDirs": [
+          "../../c/embed-workspace/libs/cj131/output/stm32f407vet6/include",
+          "../../c/embed-workspace/libs/cj131/output/stm32f407vet6/include/cj131",
+          "../../c/embed-workspace/libs/cj131/output/stm32f407vet6/include/cj131/comm",
+          "../../c/embed-workspace/libs/cj131/output/stm32f407vet6/include/cj131/core",
+          "../../c/embed-workspace/libs/cj131/output/stm32f407vet6/include/cj131/tools",
+          "../../c/embed-workspace/libs/cj131/output/stm32f407vet6/include/cj131/trans"
+        ]
+      },
+      "linkLibraries": ["m"]
+    }
+  ],
+  "generation": {
+    "generator": "Ninja",
+    "buildDir": "build",
+    "buildScript": true,
+    "outputFormats": ["elf", "hex", "bin"],
+    "sizeReport": true
+  }
+}

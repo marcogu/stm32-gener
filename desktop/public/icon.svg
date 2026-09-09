@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>STM CMake Forge</title>
+  <rect width="1024" height="1024" rx="224" fill="#101619"/>
+  <rect x="76" y="76" width="872" height="872" rx="188" fill="none" stroke="#29363b" stroke-width="20"/>
+
+  <g fill="none" stroke="#8de1c3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M358 264V188M512 264V164M666 264V188" stroke-width="28"/>
+    <path d="M358 760v76M512 760v100M666 760v76" stroke-width="28"/>
+    <path d="M264 358h-76M264 512H164M264 666h-76" stroke-width="28"/>
+    <path d="M760 358h76M760 512h100M760 666h76" stroke-width="28"/>
+  </g>
+
+  <rect x="264" y="264" width="496" height="496" rx="92" fill="#182327" stroke="#8de1c3" stroke-width="28"/>
+  <path d="M400 624 512 404l112 220Z" fill="#101619" stroke="#f1f5f2" stroke-width="24"/>
+  <circle cx="400" cy="624" r="34" fill="#8de1c3"/>
+  <circle cx="512" cy="404" r="34" fill="#8de1c3"/>
+  <circle cx="624" cy="624" r="34" fill="#8de1c3"/>
+  <path d="M420 560 512 480l92 80" fill="none" stroke="#8de1c3" stroke-width="18" stroke-linecap="round"/>
+</svg>
