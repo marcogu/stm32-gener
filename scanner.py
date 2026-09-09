@@ -21,6 +21,8 @@ EXCLUDED_DIRECTORIES = {
 BRACKET_START = re.compile(r"\[(=*)\[")
 COMMAND_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_.+-]*\Z")
+LIBRARY_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*\Z")
+TARGET_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_.+-]*(?:::[A-Za-z_][A-Za-z0-9_.+-]*)*\Z")
 
 
 class ScanError(ValueError):
@@ -185,6 +187,11 @@ def _literal_identifier(value: str) -> str | None:
     return value if IDENTIFIER.fullmatch(value) else None
 
 
+def _literal_target(value: str) -> str | None:
+    """Return a literal CMake target name, including namespace separators."""
+    return value if TARGET_IDENTIFIER.fullmatch(value) else None
+
+
 def _project_hints(cmake_text: str, env_text: str) -> tuple[str | None, str | None]:
     name = next((_literal_identifier(args[0]) for command, args in _commands(cmake_text)
                  if command == "project" and args), None)
@@ -200,6 +207,22 @@ def _project_hints(cmake_text: str, env_text: str) -> tuple[str | None, str | No
         if target_env:
             break
     return name, target_env
+
+
+def _library_targets(cmake_text: str) -> list[str]:
+    """Find literal targets declared by add_library commands in source order."""
+    targets: list[str] = []
+    for command, args in _commands(cmake_text):
+        if command != "add_library" or not args:
+            continue
+        # ALIAS entries refer to an existing target and cannot be configured
+        # with target_* commands generated for a library dependency.
+        if len(args) >= 2 and args[1].upper() == "ALIAS":
+            continue
+        target = _literal_target(args[0])
+        if target and target not in targets:
+            targets.append(target)
+    return targets
 
 
 def _is_toolchain(path: Path) -> bool:
@@ -257,6 +280,32 @@ def scan_project(root: Path, source_dirs: list[str] | None = None) -> dict:
     }
 
 
+def scan_library(root: Path) -> dict:
+    """Inspect a local CMake library and suggest its declared target name.
+
+    CMake projects commonly omit ``project()`` and expose their usable name
+    through ``add_library(...)`` instead. The first literal add_library target
+    is therefore preferred, with a literal project name and directory name as
+    fallbacks. No CMake evaluation or configure step is performed.
+    """
+    root = _directory(root)
+    cmake = root / "CMakeLists.txt"
+    text = _read(cmake)
+    targets = _library_targets(text)
+    project_name, _ = _project_hints(text, "")
+    target = targets[0] if targets else None
+    # ``name`` is validated as a plain library identifier by config_model;
+    # namespace-qualified targets belong in the separate ``target`` field.
+    name = (target if target and LIBRARY_NAME.fullmatch(target) else None) or project_name or root.name
+    return {
+        "rootDir": str(root),
+        "name": name,
+        "target": target or name,
+        "targets": targets,
+        "hasCMake": cmake.is_file() and not cmake.is_symlink(),
+    }
+
+
 def scan_workspace(root: Path) -> dict:
     """Inspect direct apps/ and envs/ children using the workspace convention."""
     root = _directory(root)
@@ -278,7 +327,7 @@ def scan_workspace(root: Path) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("path", type=Path)
-    parser.add_argument("--kind", choices=["environment", "project", "workspace"], default="project")
+    parser.add_argument("--kind", choices=["environment", "project", "library", "workspace"], default="project")
     parser.add_argument("--source-dir", action="append", help="Project source directory; repeat to select several (default: entire project)")
     args = parser.parse_args()
     if args.source_dir is not None and args.kind != "project":
@@ -288,6 +337,8 @@ def main() -> int:
             result = scan_project(args.path, source_dirs=args.source_dir)
         elif args.kind == "environment":
             result = scan_environment(args.path)
+        elif args.kind == "library":
+            result = scan_library(args.path)
         else:
             result = scan_workspace(args.path)
     except (ScanError, OSError) as error:

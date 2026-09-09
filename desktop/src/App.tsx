@@ -150,7 +150,17 @@ function App() {
         ? await open({ directory: true, multiple: false, title: "Select CMake root", defaultPath: library.path || undefined })
         : await open({ multiple: false, title: "Select static archive", defaultPath: library.artifact || undefined, filters: [{ name: "Static archive", extensions: ["a", "lib"] }] });
       if (selected && typeof selected === "string") {
-        setLibraries((value) => value.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: selected } : item));
+        if (field === "path") {
+          const found = await invoke<Record<string, unknown>>("bridge", { request: { action: "scan", kind: "library", path: selected } });
+          if (found.hasCMake !== true) throw new Error("Selected CMake root does not contain CMakeLists.txt.");
+          const name = typeof found.name === "string" ? found.name.trim() : "";
+          const target = typeof found.target === "string" ? found.target.trim() : "";
+          if (!name || !target) throw new Error("Could not determine a library name from CMakeLists.txt.");
+          setLibraries((value) => value.map((item, itemIndex) => itemIndex === index ? { ...item, path: selected, name, target } : item));
+          setStatus(`Detected library: ${name}`);
+        } else {
+          setLibraries((value) => value.map((item, itemIndex) => itemIndex === index ? { ...item, artifact: selected } : item));
+        }
       }
     } catch (error) { fail(errorMessage(error), 2, field === "path" ? "Directory selection failed" : "File selection failed"); }
   }

@@ -5,13 +5,13 @@ from pathlib import Path
 
 from config_model import ConfigError, normalize_config
 from generator import check_destinations, preview, render, write_files
-from scanner import scan_environment, scan_project, scan_workspace
+from scanner import scan_environment, scan_library, scan_project, scan_workspace
 
 
 def handle(request):
     action = request["action"]
     if action == "scan":
-        scan = {"environment": scan_environment, "project": scan_project, "workspace": scan_workspace}[request["kind"]]
+        scan = {"environment": scan_environment, "project": scan_project, "library": scan_library, "workspace": scan_workspace}[request["kind"]]
         return scan(Path(request["path"]))
     output = Path(request["output"]).expanduser().resolve()
     base = Path(request["configDir"]).expanduser().resolve()

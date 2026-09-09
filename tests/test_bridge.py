@@ -53,6 +53,16 @@ class BridgeTests(unittest.TestCase):
                 self.assertTrue(response["error"])
                 self.assertFalse(self.out.exists())
 
+    def test_library_scan_returns_declared_cmake_target(self):
+        library = self.root / "library"
+        library.mkdir()
+        (library / "CMakeLists.txt").write_text("add_library(driver STATIC driver.c)\n", encoding="utf-8")
+        request = json.dumps({"action": "scan", "kind": "library", "path": str(library)})
+        response = self.request(input_text=request)
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["data"]["name"], "driver")
+        self.assertEqual(response["data"]["target"], "driver")
+
     def test_required_field_is_reported_before_writing(self):
         self.config["project"]["name"] = ""
         response = self.request()

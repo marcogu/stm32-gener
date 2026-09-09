@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scanner import ScanError, discover_sources, scan_environment, scan_project, scan_workspace
+from scanner import ScanError, discover_sources, scan_environment, scan_library, scan_project, scan_workspace
 
 
 class ScannerTests(unittest.TestCase):
@@ -95,6 +95,25 @@ set(TARGET_ENV "stm32f407vet6" CACHE STRING "Target # name")
         result = scan_project(self.root)
         self.assertEqual(result["name"], "sensor_app")
         self.assertEqual(result["targetEnv"], "chip-a")
+
+    def test_library_scan_prefers_first_literal_add_library_target(self):
+        self.write("CMakeLists.txt", '''
+# add_library(ignored INTERFACE)
+project(wrapper)
+add_library(core::driver STATIC src/driver.c)
+add_library(second INTERFACE)
+''')
+        result = scan_library(self.root)
+        self.assertEqual(result["name"], "wrapper")
+        self.assertEqual(result["target"], "core::driver")
+        self.assertEqual(result["targets"], ["core::driver", "second"])
+        self.assertTrue(result["hasCMake"])
+
+    def test_library_scan_falls_back_to_project_or_directory_name(self):
+        self.write("CMakeLists.txt", "project(wrapper)")
+        self.assertEqual(scan_library(self.root)["name"], "wrapper")
+        self.write("CMakeLists.txt", "add_library(${DYNAMIC_NAME} STATIC value.c)")
+        self.assertEqual(scan_library(self.root)["name"], self.root.name)
 
     def test_environment_recognizes_toolchain_content_and_nested_files(self):
         custom = self.write("cmake/custom-name.cmake", 'set(CMAKE_C_COMPILER "arm-none-eabi-gcc")')
