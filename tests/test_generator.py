@@ -45,6 +45,7 @@ class GeneratorTests(unittest.TestCase):
         config, files = self.plan()
         self.assertIn(Path("src/app_main.c"), files)
         self.assertNotIn("find_program", files[Path("CMakeLists.txt")])
+        self.assertNotIn("set(CMAKE_C_STANDARD ", files[Path("CMakeLists.txt")])
         self.assertIn("+++ CMakeLists.txt", preview(files, self.out))
         self.assertFalse(self.out.exists())
         write_files(files, self.out, directories=config["project"]["createDirs"])
@@ -198,7 +199,8 @@ class GeneratorTests(unittest.TestCase):
             {"name": "local", "target": "local_target", "source": {"type": "local-cmake", "path": str(local)}},
             {"name": "remote", "target": "git_target", "source": {"type": "git", "repository": str(repo), "ref": ref, "cmakeSubdir": "lib def", "fetchContentName": "DriverSource", "checkoutDir": "third party/git lib"}},
         ]
-        self.raw["project"].update(compileStandard="c17", compileDefinitions=["PROJECT_FLAG=1"])
+        put(self.root / "env/toolchain.cmake", 'set(CMAKE_C_COMPILER "cc")\nset(CMAKE_C_STANDARD 17)\n')
+        self.raw["project"].update(compileDefinitions=["PROJECT_FLAG=1"])
         self.raw["environment"]["device"] = {"defines": ["ENV_FLAG=1"]}
         self.raw["libraries"][0]["compileDefinitions"] = ["LIB_FLAG=1"]
         self.raw["generation"]["buildDir"] = "artifact build"

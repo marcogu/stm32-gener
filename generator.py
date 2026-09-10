@@ -45,7 +45,6 @@ def render(config: dict, config_dir: Path, output: Path) -> dict[Path, str]:
         '    message(FATAL_ERROR "Select the environment in the generator and regenerate into a fresh build directory.")',
         "endif()",
         'set(CMAKE_TOOLCHAIN_FILE "${ENV_TOOLCHAIN_FILE}")',
-        f"set(CMAKE_C_STANDARD {standard[-2:]})",
         "set(CMAKE_C_STANDARD_REQUIRED ON)",
         f"set(CMAKE_C_EXTENSIONS {'ON' if standard.startswith('gnu') else 'OFF'})",
         f"project({project['name']} VERSION {project['version']} LANGUAGES C ASM)",

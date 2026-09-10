@@ -110,8 +110,9 @@ the output directory, `generateExampleMain` can create `entryFile` when no sourc
 file exists there. Existing environment, project, and library files remain in
 place; generation never copies them.
 
-The current standard choices stop at C17; C23 and GNU C23 will be added in a
-later schema revision after toolchain support is settled.
+`compileStandard` controls GNU extensions through `CMAKE_C_EXTENSIONS`. The
+generated template does not set `CMAKE_C_STANDARD`; the C standard version is
+inherited from the environment/toolchain or the compiler default.
 
 The application target must have the same name as `project.name` because the
 CubeMX environment template relies on that project name.
