@@ -88,7 +88,7 @@ class GeneratorTests(unittest.TestCase):
         self.raw["project"].update(rootDir="app", sourceDirs=["."], sourceFiles=["src/a.c"])
         config, files = self.plan()
         self.assertEqual(len(config["project"]["sourceFiles"]), 2)
-        self.assertIn(str(self.root / "app/src/a.c"), files[Path("CMakeLists.txt")])
+        self.assertIn((self.root / "app/src/a.c").as_posix(), files[Path("CMakeLists.txt")])
         self.assertNotIn("CompilerIdC", files[Path("CMakeLists.txt")])
         self.assertNotIn(Path("src/app_main.c"), files)
 
@@ -152,7 +152,7 @@ class GeneratorTests(unittest.TestCase):
         self.assertIn("FetchContent_MakeAvailable(DriverSource)", text)
         self.assertIn('SOURCE_SUBDIR "lib def"', text)
         self.assertIn("UPDATE_DISCONNECTED TRUE", text)
-        self.assertIn(str(self.root / "checkout with spaces/include"), text)
+        self.assertIn((self.root / "checkout with spaces/include").as_posix(), text)
         self.assertFalse((self.root / "checkout with spaces").exists())
         self.raw["libraries"].append(copy.deepcopy(self.raw["libraries"][0]))
         with self.assertRaises(ConfigError):

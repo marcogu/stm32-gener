@@ -35,10 +35,10 @@ class BridgeTests(unittest.TestCase):
 
     def request(self, action="generate", input_text=None):
         result = subprocess.run(
-            [sys.executable, str(ROOT / "bridge.py")],
+            [sys.executable, "-X", "utf8", str(ROOT / "bridge.py")],
             input=self.payload(action) if input_text is None else input_text,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
         )
         self.assertNotIn("Traceback", result.stderr)
         response = json.loads(result.stdout)
@@ -62,6 +62,15 @@ class BridgeTests(unittest.TestCase):
         self.assertTrue(response["ok"])
         self.assertEqual(response["data"]["name"], "driver")
         self.assertEqual(response["data"]["target"], "driver")
+
+    def test_unicode_paths_round_trip_through_utf8_bridge(self):
+        self.out = self.root / "\u4e2d\u6587\u5de5\u7a0b"
+        payload = json.dumps({"action": "generate", "config": self.config,
+                              "configDir": str(self.root), "output": str(self.out)}, ensure_ascii=False)
+        response = self.request(input_text=payload)
+        self.assertTrue(response["ok"])
+        self.assertEqual(Path(response["data"]["output"]), self.out.resolve())
+        self.assertTrue((self.out / "CMakeLists.txt").is_file())
 
     def test_required_field_is_reported_before_writing(self):
         self.config["project"]["name"] = ""

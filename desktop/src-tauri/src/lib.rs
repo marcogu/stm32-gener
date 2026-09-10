@@ -4,7 +4,10 @@ use std::process::{Command, Stdio};
 use tauri::Manager;
 
 fn python_command() -> Command {
-    if cfg!(target_os = "windows") { Command::new("python") } else { Command::new("python3") }
+    let mut command = if cfg!(target_os = "windows") { Command::new("python") } else { Command::new("python3") };
+    // The JSON bridge exchanges UTF-8, including Windows paths with non-ASCII names.
+    command.args(["-X", "utf8"]);
+    command
 }
 
 #[tauri::command]

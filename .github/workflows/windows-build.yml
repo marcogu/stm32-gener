@@ -1,0 +1,66 @@
+name: Build Windows Installers
+
+# Start a build from the Actions tab when an installer is needed.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      RUSTUP_TOOLCHAIN: stable
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Check out source code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Rust
+        run: rustup toolchain install stable --profile minimal --no-self-update
+
+      - name: Run Python tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Install frontend dependencies
+        working-directory: desktop
+        run: npm ci
+
+      # Tauri also runs the frontend build configured in tauri.conf.json.
+      - name: Build Windows installers
+        working-directory: desktop
+        run: npm run tauri build -- --ci -- --locked
+
+      - name: Upload EXE installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: STM-CMake-Forge-windows-x64-exe
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload MSI installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: STM-CMake-Forge-windows-x64-msi
+          path: desktop/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+          retention-days: 14
