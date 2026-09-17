@@ -27,6 +27,16 @@ def path_arg(path: Path, output: Path) -> str:
     return cmake_arg(path.as_posix())
 
 
+def env_path_arg(path: Path, root: Path, output: Path) -> str:
+    """Reuse ENV_ROOT for its children, preserving paths outside the environment."""
+    path, root = path.resolve(), root.resolve()
+    if path == root:
+        return '"${ENV_ROOT}"'
+    if path.is_relative_to(root):
+        return '"${ENV_ROOT}/' + cmake_arg(path.relative_to(root).as_posix())[1:]
+    return path_arg(path, output)
+
+
 def target_items(command: str, values: list[str], scope: str = "PRIVATE", target: str = "${PROJECT_NAME}") -> list[str]:
     if not values:
         return []
@@ -106,13 +116,13 @@ def render(config: dict, config_dir: Path, output: Path) -> dict[Path, str]:
         f"set(_GENERATED_TARGET_ENV {cmake_arg(env['id'])})",
         f'set(TARGET_ENV {cmake_arg(env["id"])} CACHE STRING "Selected environment")',
         f"set(ENV_ROOT {path_arg(env['rootDir'], output)})",
-        f"set(ENV_TOOLCHAIN_FILE {path_arg(tool['file'], output)})",
-        f"set(ENV_CUBEMX_DIR {path_arg(env['cubemxDir'], output)})",
+        f"set(ENV_TOOLCHAIN_FILE {env_path_arg(tool['file'], env['rootDir'], output)})",
+        f"set(ENV_CUBEMX_DIR {env_path_arg(env['cubemxDir'], env['rootDir'], output)})",
     ]
     if "binDir" in tool:
         env_lines += [
             "if(CMAKE_HOST_WIN32)", '    set(_PATH_SEPARATOR ";")', "else()", '    set(_PATH_SEPARATOR ":")', "endif()",
-            f"set(_TOOL_BIN {path_arg(tool['binDir'], output)})",
+            f"set(_TOOL_BIN {env_path_arg(tool['binDir'], env['rootDir'], output)})",
             'set(ENV{PATH} "${_TOOL_BIN}${_PATH_SEPARATOR}$ENV{PATH}")',
         ]
     ignored = [gen["buildDir"].as_posix() + "/", "cmake-build-*/"]

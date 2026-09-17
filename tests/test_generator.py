@@ -143,6 +143,70 @@ class GeneratorTests(unittest.TestCase):
         self.assertNotIn("./build.sh", files[Path("README.md")])
         self.assertIn('artifact build/Debug', files[Path("README.md")])
 
+    def test_environment_paths_fold_only_within_environment_root(self):
+        env_root = self.root / "env"
+        cases = (
+            ("descendants", env_root, "${ENV_ROOT}", False),
+            ("similar prefix", self.root / "env-other", (self.root / "env-other").as_posix(), False),
+            ("outside root within output", self.out / "tools", "${CMAKE_CURRENT_SOURCE_DIR}/tools", False),
+            ("root itself", env_root, "${ENV_ROOT}", True),
+        )
+        for name, base, prefix, at_root in cases:
+            with self.subTest(name=name):
+                cubemx = base if at_root else base / "cmake/stm32cubemx"
+                bin_dir = base if at_root else base / "bin"
+                put(base / "toolchain.cmake", "# toolchain\n")
+                put(cubemx / "CMakeLists.txt", "# CubeMX\n")
+                bin_dir.mkdir(parents=True, exist_ok=True)
+                raw = copy.deepcopy(self.raw)
+                raw["environment"].update(cubemxDir=str(cubemx), toolchain={
+                    "file": str(base / "toolchain.cmake"), "binDir": str(bin_dir)})
+                _, files = self.plan(raw)
+                text = files[Path("env_cfg.cmake")]
+                self.assertIn(f'set(ENV_ROOT "{env_root.as_posix()}")', text)
+                self.assertIn('set(TARGET_ENV "test_env" CACHE STRING "Selected environment")', text)
+                expected = {
+                    "ENV_TOOLCHAIN_FILE": prefix + "/toolchain.cmake",
+                    "ENV_CUBEMX_DIR": prefix if at_root else prefix + "/cmake/stm32cubemx",
+                    "_TOOL_BIN": prefix if at_root else prefix + "/bin",
+                }
+                for variable, value in expected.items():
+                    self.assertIn(f'set({variable} "{value}")', text)
+
+    @unittest.skipUnless(shutil.which("cmake"), "requires CMake for path expansion")
+    def test_folded_environment_paths_expand_literally_and_preserve_cached_target(self):
+        env_root = self.root / "test_env $literal ${TARGET_ENV}"
+        env_root.mkdir()
+        for external in (False, True):
+            base = self.out / "external $literal ${TARGET_ENV}" if external else env_root
+            toolchain = base / "tool chain ${TARGET_ENV}.cmake"
+            cubemx = base / "Cube MX $literal ${TARGET_ENV}"
+            bin_dir = base / "tool bin $literal ${TARGET_ENV}"
+            put(toolchain, "# toolchain\n")
+            put(cubemx / "CMakeLists.txt", "# CubeMX\n")
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            raw = copy.deepcopy(self.raw)
+            raw["environment"].update(rootDir=str(env_root), cubemxDir=str(cubemx), toolchain={
+                "file": str(toolchain), "binDir": str(bin_dir)})
+            _, files = self.plan(raw)
+            put(self.out / "env_cfg.cmake", files[Path("env_cfg.cmake")])
+            variables = ["TARGET_ENV", "_GENERATED_TARGET_ENV", "ENV_ROOT", "ENV_TOOLCHAIN_FILE", "ENV_CUBEMX_DIR", "_TOOL_BIN"]
+            put(self.out / "inspect.cmake", 'cmake_minimum_required(VERSION 3.22)\n'
+                'include("${CMAKE_CURRENT_LIST_DIR}/env_cfg.cmake")\n'
+                'file(WRITE "${CMAKE_CURRENT_LIST_DIR}/expanded.txt" "'
+                + "\\n".join("${" + variable + "}" for variable in variables) + '\\n$ENV{PATH}")\n')
+            for cached_target in (None, "previous_environment"):
+                with self.subTest(external=external, cached_target=cached_target):
+                    args = [shutil.which("cmake")]
+                    if cached_target:
+                        args.append(f"-DTARGET_ENV:STRING={cached_target}")
+                    result = subprocess.run(args + ["-P", "inspect.cmake"], cwd=self.out, capture_output=True, text=True, timeout=30)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertEqual((self.out / "expanded.txt").read_text().splitlines(), [
+                        cached_target or "test_env", "test_env", env_root.as_posix(), toolchain.as_posix(),
+                        cubemx.as_posix(), bin_dir.as_posix(), bin_dir.as_posix() + os.pathsep + os.environ.get("PATH", ""),
+                    ])
+
     def test_git_validation_and_rendering_without_network(self):
         self.raw["libraries"] = [{"name": "driver", "target": "vendor::driver", "source": {
             "type": "git", "repository": "ssh://git@example.invalid/repo.git", "ref": "v1.0.0",
