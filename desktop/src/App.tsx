@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
@@ -7,6 +8,7 @@ type Library = { name: string; type: "local-static" | "local-cmake" | "git"; tar
 const emptyLibrary = (): Library => ({ name: "", type: "local-static", target: "", path: "", artifact: "", repository: "", ref: "main", checkoutDir: "third_party/library", includeDirs: "" });
 
 function App() {
+  const [appVersion, setAppVersion] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [status, setStatus] = useState("Ready");
   const [error, setError] = useState<{ title: string; message: string } | null>(null);
@@ -17,6 +19,10 @@ function App() {
   const [environment, setEnvironment] = useState({ id: "", rootDir: "", toolchain: "", cubemx: "" });
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [generation] = useState({ buildDir: "build", generator: "Ninja", buildScript: true, formats: ["elf", "hex", "bin"], sizeReport: true });
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => setAppVersion(null));
+  }, []);
 
   const projectOutputDir = useMemo(() => {
     const parent = project.parentDir.trim().replace(/[\\/]+$/, "");
@@ -41,7 +47,7 @@ function App() {
     schemaVersion: 1,
     project: { name: project.name, target: project.name, rootDir: projectOutputDir, sourceDirs, includeDirs: project.includeDirs.split(",").map((v) => v.trim()).filter(Boolean), scanSources: true, entryFile, generateExampleMain: true, compileStandard: "gnu11" },
     environment: { id: environment.id, rootDir: environment.rootDir, cubemxDir: environment.cubemx || undefined, toolchain: { file: environment.toolchain } },
-    libraries: libraries.map((lib) => ({ name: lib.name, target: lib.target || lib.name, includeDirs: lib.includeDirs.split(/\r?\n/).map((v) => v.trim()).filter(Boolean), source: lib.type === "git" ? { type: "git", repository: lib.repository, ref: lib.ref, checkoutDir: lib.checkoutDir } : lib.type === "local-cmake" ? { type: "local-cmake", path: lib.path } : { type: "local-static", artifact: lib.artifact, includeDirs: lib.includeDirs.split(/\r?\n/).map((v) => v.trim()).filter(Boolean) } })),
+    libraries: libraries.map((lib) => ({ name: lib.name, target: lib.target || lib.name, includeDirs: lib.includeDirs.split(/\r?\n/).map((v) => v.trim()).filter(Boolean), source: lib.type === "git" ? { type: "git", repository: lib.repository, ref: lib.ref, checkoutDir: lib.checkoutDir } : lib.type === "local-cmake" ? { type: "local-cmake", path: lib.path } : { type: "local-static", artifact: lib.artifact } })),
     generation: { buildDir: generation.buildDir, generator: generation.generator, buildScript: generation.buildScript, outputFormats: generation.formats, sizeReport: generation.sizeReport },
     });
   }, [environment, generation, libraries, project, projectOutputDir]);
@@ -181,7 +187,7 @@ function App() {
   }
 
   return <main className="app-shell">
-    <header className="topbar"><div className="brand"><img className="brand-mark" src="/icon.svg" alt="" /><span className="brand-name">CMake Forge</span></div><span className={error ? "status status-error" : "status"}><i className="status-dot" />{status}</span></header>
+    <header className="topbar"><div className="brand"><img className="brand-mark" src="/icon.svg" alt="" /><span className="brand-name">CMake Forge</span><span className="app-version" aria-label="Application version">{appVersion ? `v${appVersion}` : "Version unavailable"}</span></div><span className={error ? "status status-error" : "status"}><i className="status-dot" />{status}</span></header>
     <div className="workspace">
       <aside className="sidebar"><div className="eyebrow">PROJECT BUILDER</div><nav>{["Project", "Environment", "Libraries", "Review"].map((label, index) => <button key={label} className={step === index ? "nav-item active" : "nav-item"} onClick={() => setStep(index)}><span className="nav-number">0{index + 1}</span>{label}</button>)}</nav><div className="sidebar-foot"><span className="tiny-label">SCHEMA</span><strong>v1</strong><span className="tiny-label">TARGET</span><strong>{environment.id || "Not selected"}</strong></div></aside>
       <section className="content"><div className="page-heading"><div><span className="kicker">STEP 0{step + 1} / 04</span><h1>{["Project identity", "Build environment", "Library sources", "Review & generate"][step]}</h1><p>{["Define the application directory and source layout.", "Connect an existing CubeMX environment and ARM toolchain.", "Choose local artifacts or Git dependencies per library.", "Inspect the generated files before writing them to disk."][step]}</p></div><div className="progress"><span style={{ width: `${((step + 1) / 4) * 100}%` }} /></div></div>

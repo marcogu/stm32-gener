@@ -83,8 +83,7 @@ def render(config: dict, config_dir: Path, output: Path) -> dict[Path, str]:
             ]
         lines += [f"if(NOT TARGET {target})", f'    message(FATAL_ERROR "Library {name} did not define target {target}.")', "endif()"]
         include_args = [path_arg(p, output) for p in lib["includeDirs"]]
-        # Application code may include a library's public headers directly.
-        lines += target_items("target_include_directories", include_args)
+        # Linked applications inherit the library's public include directories.
         lines += target_items("target_include_directories", include_args, scope="INTERFACE", target=target)
         for key, command in (("compileDefinitions", "target_compile_definitions"), ("compileOptions", "target_compile_options")):
             lines += target_items(command, [cmake_arg(v) for v in lib[key]], scope="INTERFACE", target=target)

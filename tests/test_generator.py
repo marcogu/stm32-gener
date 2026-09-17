@@ -171,6 +171,31 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertNotIn("Traceback", result.stderr)
 
+    def test_library_include_paths_are_unique_and_inherited(self):
+        put(self.root / "local/CMakeLists.txt", "add_library(driver INTERFACE)\n")
+        put(self.root / "libdriver.a", "archive fixture")
+        for name in ("headers-a", "headers-b", "headers-c"):
+            (self.root / name).mkdir()
+        for source in (
+            {"type": "local-static", "artifact": "libdriver.a", "includeDirs": ["headers-b", "./headers-a", "headers-c"]},
+            {"type": "local-cmake", "path": "local"},
+            {"type": "git", "repository": "https://example.invalid/driver.git", "ref": "main", "checkoutDir": str(self.root / "checkout")},
+        ):
+            with self.subTest(source=source["type"]):
+                base = self.root / "checkout" if source["type"] == "git" else self.root
+                self.raw["libraries"] = [{"name": "driver", "source": source,
+                    "includeDirs": [str(base / "headers-a"), "headers-a/../headers-a", "headers-b", "headers-b"]}]
+                config, files = self.plan()
+                expected = [base / "headers-a", base / "headers-b"]
+                if source["type"] == "local-static":
+                    expected.append(base / "headers-c")
+                self.assertEqual(config["libraries"][0]["includeDirs"], expected)
+                text = files[Path("CMakeLists.txt")]
+                block = 'target_include_directories(driver INTERFACE\n' + ''.join(f'    "{path.as_posix()}"\n' for path in expected) + ')'
+                self.assertIn(block, text)
+                for path in expected:
+                    self.assertEqual(text.count(f'"{path.as_posix()}"'), 1)
+
     @unittest.skipUnless(all(shutil.which(v) for v in ("cmake", "ninja", "git", "cc", "ar", "bash")), "requires CMake/Ninja/Git/C compiler/ar/bash")
     @unittest.skipIf(os.name == "nt", "host executable and bash integration runs on POSIX")
     def test_full_local_static_cmake_and_git_build(self):
@@ -187,24 +212,26 @@ class GeneratorTests(unittest.TestCase):
         local = self.root / "local lib"
         put(local / "CMakeLists.txt", "add_library(local_target STATIC value.c)\n")
         put(local / "value.c", "int local_value(void) { return 3; }\n")
+        put(local / "include/local.h", "int local_value(void);\n")
         repo = self.root / "git repo"
         put(repo / "lib def/CMakeLists.txt", "add_library(git_target STATIC value.c)\n")
         put(repo / "lib def/value.c", "int git_value(void) { return 4; }\n")
+        put(repo / "include/remote.h", "int git_value(void);\n")
         run(["git", "init", "--quiet", str(repo)])
         run(["git", "add", "."], repo)
         run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "fixture"], repo)
         ref = run(["git", "rev-parse", "HEAD"], repo).stdout.strip()
         self.raw["libraries"] = [
-            {"name": "prebuilt", "source": {"type": "local-static", "artifact": str(static / "libvalue.a"), "includeDirs": [str(static / "include")]}},
-            {"name": "local", "target": "local_target", "source": {"type": "local-cmake", "path": str(local)}},
-            {"name": "remote", "target": "git_target", "source": {"type": "git", "repository": str(repo), "ref": ref, "cmakeSubdir": "lib def", "fetchContentName": "DriverSource", "checkoutDir": "third party/git lib"}},
+            {"name": "prebuilt", "includeDirs": [str(static / "include")], "source": {"type": "local-static", "artifact": str(static / "libvalue.a"), "includeDirs": [str(static / "include")]}},
+            {"name": "local", "target": "local_target", "includeDirs": [str(local / "include")], "source": {"type": "local-cmake", "path": str(local)}},
+            {"name": "remote", "target": "git_target", "includeDirs": ["include"], "source": {"type": "git", "repository": str(repo), "ref": ref, "cmakeSubdir": "lib def", "fetchContentName": "DriverSource", "checkoutDir": "third party/git lib"}},
         ]
         put(self.root / "env/toolchain.cmake", 'set(CMAKE_C_COMPILER "cc")\nset(CMAKE_C_STANDARD 17)\n')
         self.raw["project"].update(compileDefinitions=["PROJECT_FLAG=1"])
         self.raw["environment"]["device"] = {"defines": ["ENV_FLAG=1"]}
         self.raw["libraries"][0]["compileDefinitions"] = ["LIB_FLAG=1"]
         self.raw["generation"]["buildDir"] = "artifact build"
-        put(self.out / "src/app_main.c", '#include "value.h"\n#if __STDC_VERSION__ != 201710L || !PROJECT_FLAG || !ENV_FLAG || !LIB_FLAG\n#error configuration did not apply\n#endif\nint local_value(void); int git_value(void);\nvoid app_main(void) { if (static_value()+local_value()+git_value()!=9) __builtin_trap(); }\n')
+        put(self.out / "src/app_main.c", '#include "value.h"\n#include "local.h"\n#include "remote.h"\n#if __STDC_VERSION__ != 201710L || !PROJECT_FLAG || !ENV_FLAG || !LIB_FLAG\n#error configuration did not apply\n#endif\nvoid app_main(void) { if (static_value()+local_value()+git_value()!=9) __builtin_trap(); }\n')
         config, files = self.plan()
         write_files(files, self.out, directories=config["project"]["createDirs"])
         run(["bash", str(self.out / "build.sh"), "Debug"], self.root)

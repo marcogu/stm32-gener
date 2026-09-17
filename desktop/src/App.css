@@ -8,6 +8,7 @@ button { cursor: pointer; }
 .brand { display: flex; align-items: center; }
 .brand-mark { display: block; width: 30px; height: 30px; margin-right: 10px; }
 .brand-name { color: #f3f7f8; font-size: 15px; font-weight: 650; }
+.app-version { margin-left: 10px; padding: 3px 7px; border: 1px solid #354249; border-radius: 3px; color: #a8b6ba; font-size: 11px; white-space: nowrap; }
 .status { color: #8e9da4; font-size: 12px; display: flex; align-items: center; gap: 8px; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #8de1c3; box-shadow: 0 0 0 3px rgba(141,225,195,.1); }
 .status-error { color: #f0a4a4; }

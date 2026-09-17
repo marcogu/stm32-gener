@@ -1,7 +1,7 @@
 use serde_json::Value;
 use std::ffi::OsString;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tauri::Manager;
 
@@ -80,33 +80,35 @@ fn python_command() -> Result<Command, String> {
     Err(format!("Python 3.10 or newer was not found{detail}"))
 }
 
-#[tauri::command]
-fn bridge(app: tauri::AppHandle, request: Value) -> Result<Value, String> {
-    let bundled_bridge = app
-        .path()
-        .resource_dir()
-        .map_err(|error| error.to_string())?
-        .join("bridge.py");
-    let development_bridge = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .join("bridge.py");
-    let bridge_path = if bundled_bridge.is_file() {
+fn select_bridge_path(resource_dir: &Path, development_bridge: PathBuf, is_dev: bool) -> PathBuf {
+    // Development must read current sources, even when an older build copied resources.
+    if is_dev && development_bridge.is_file() {
+        return development_bridge;
+    }
+    let bundled_bridge = resource_dir.join("bridge.py");
+    if bundled_bridge.is_file() {
         bundled_bridge
     } else {
-        let fallback = app
-            .path()
-            .resource_dir()
-            .map_err(|error| error.to_string())?
-            .join("_up_")
-            .join("_up_")
-            .join("bridge.py");
+        let fallback = resource_dir.join("_up_").join("_up_").join("bridge.py");
         if fallback.is_file() {
             fallback
         } else {
             development_bridge
         }
-    };
+    }
+}
+
+#[tauri::command]
+fn bridge(app: tauri::AppHandle, request: Value) -> Result<Value, String> {
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|error| error.to_string())?;
+    let development_bridge = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("bridge.py");
+    let bridge_path = select_bridge_path(&resource_dir, development_bridge, tauri::is_dev());
     let mut command = python_command()?;
     let mut child = command
         .arg(bridge_path)
@@ -159,7 +161,70 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::python_command;
+    use super::{python_command, select_bridge_path};
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct BridgeFiles(PathBuf);
+
+    impl BridgeFiles {
+        fn new() -> Self {
+            static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+            let directory = std::env::temp_dir().join(format!(
+                "stm-cmake-forge-bridge-{}-{}",
+                std::process::id(),
+                NEXT_ID.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&directory).unwrap();
+            Self(directory)
+        }
+
+        fn write(&self, path: &str) -> PathBuf {
+            let path = self.0.join(path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, "# bridge fixture").unwrap();
+            path
+        }
+    }
+
+    impl Drop for BridgeFiles {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn development_prefers_source_over_stale_bundled_resources() {
+        let files = BridgeFiles::new();
+        let source = files.write("source/bridge.py");
+        let bundled = files.write("resources/bridge.py");
+        files.write("resources/_up_/_up_/bridge.py");
+        assert_eq!(
+            select_bridge_path(bundled.parent().unwrap(), source.clone(), true),
+            source
+        );
+        fs::remove_file(&source).unwrap();
+        assert_eq!(
+            select_bridge_path(bundled.parent().unwrap(), source, true),
+            bundled
+        );
+    }
+
+    #[test]
+    fn packaged_app_prefers_its_resources_even_when_source_exists() {
+        let files = BridgeFiles::new();
+        let source = files.write("source/bridge.py");
+        let bundled = files.write("resources/bridge.py");
+        let legacy = files.write("resources/_up_/_up_/bridge.py");
+        let resource_dir = bundled.parent().unwrap();
+        assert_eq!(
+            select_bridge_path(resource_dir, source.clone(), false),
+            bundled
+        );
+        fs::remove_file(&bundled).unwrap();
+        assert_eq!(select_bridge_path(resource_dir, source, false), legacy);
+    }
 
     #[test]
     fn selects_python_310_or_newer() {

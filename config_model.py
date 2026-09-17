@@ -308,7 +308,12 @@ def normalize_config(data: dict, config_dir: Path, output: Path) -> dict:
             fetch_names.add(fetch_key)
             src["updateDisconnection"] = boolean(src.get("updateDisconnection", False), where + ".source.updateDisconnection")
         base = src["checkoutDir"] if src["type"] == "git" else config_dir
-        lib["includeDirs"] = [local_path(value, base, where + ".includeDirs", None if src["type"] == "git" else "dir") for value in extra_includes]
+        # Both include fields are supported; resolve aliases before deduplicating
+        # and preserve the declared header search order.
+        lib["includeDirs"] = list(dict.fromkeys(
+            local_path(value, base, where + ".includeDirs", None if src["type"] == "git" else "dir")
+            for value in extra_includes
+        ))
         for key in ("compileOptions", "compileDefinitions", "linkLibraries"):
             lib[key] = strings(lib.get(key, []), where + "." + key)
     data["libraries"] = libraries
