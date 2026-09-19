@@ -1,11 +1,18 @@
 # Configuration format (schemaVersion 1)
 
-The CLI and future desktop UI use one JSON configuration. `config_model.py`
+The CLI and desktop UI use one JSON configuration. `config_model.py`
 validates the fields below, resolves paths, and supplies the defaults shown here.
 The model describes references to existing files; it does not copy an environment
 or a library into the generated application. For a new project whose root is the
 output directory, missing `sourceDirs` and `includeDirs` are created during
 generation.
+
+The desktop header's **Export config** saves the current configuration in this
+format, and **Import config** restores it. Import preserves supported fields that
+are not exposed by the form. Config-relative local paths are resolved against the
+imported file's directory so saving the configuration elsewhere keeps referring
+to the same files. Project-relative and checkout-relative paths follow the rules
+below.
 
 ## Path rules
 
@@ -143,6 +150,12 @@ Source variants:
 For Git sources, `cmakeSubdir` defaults to `.`, `fetchContentName` to the library
 name, and `updateDisconnection` to `false`; `repository`, `ref`, and
 `checkoutDir` must be supplied.
+`cmakeSubdir` is the directory containing the dependency's `CMakeLists.txt`,
+relative to the repository root; it becomes CMake's `SOURCE_SUBDIR`. For example,
+use `components/driver` when the file is `components/driver/CMakeLists.txt`.
+The desktop **SOURCE_SUBDIR** field accepts this value and treats a blank field
+as `.`. In JSON, omit `cmakeSubdir` or set it to `.` for the repository root;
+an empty string is invalid.
 `repository` may be a URL, SCP-style Git address, or existing local directory.
 Git entries are rendered with CMake `FetchContent`; the generator does not run
 Git or access the network during generation. Fetching occurs later when CMake

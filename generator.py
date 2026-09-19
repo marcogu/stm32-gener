@@ -14,6 +14,7 @@ import tempfile
 from pathlib import Path
 
 from config_model import ConfigError, normalize_config, read_config
+from project_git import initialize_repository
 
 
 def cmake_arg(value: str) -> str:
@@ -125,7 +126,11 @@ def render(config: dict, config_dir: Path, output: Path) -> dict[Path, str]:
             f"set(_TOOL_BIN {env_path_arg(tool['binDir'], env['rootDir'], output)})",
             'set(ENV{PATH} "${_TOOL_BIN}${_PATH_SEPARATOR}$ENV{PATH}")',
         ]
-    ignored = [gen["buildDir"].as_posix() + "/", "cmake-build-*/"]
+    ignored = [
+        gen["buildDir"].as_posix() + "/", "cmake-build-*/",
+        ".DS_Store", "*/DS_Store", "Thumbs.db", ".idea", ".project", ".vscode", ".codex",
+        "*.o", "*.d", "*.bin", "*.map", "*.hex", "*.lst", "*.crf", "*.swp", "*.swo",
+    ]
     for lib in config["libraries"]:
         src = lib["source"]
         if src["type"] == "git" and src["checkoutDir"].is_relative_to(output):
@@ -284,7 +289,9 @@ def main() -> int:
             print(preview(files, output), end="")
         else:
             write_files(files, output, args.force, policy=args.conflict or config["generation"]["conflictPolicy"], directories=config["project"]["createDirs"])
+            committed = initialize_repository(output)
             print(f"Processed {len(files)} planned files in {output}")
+            print('Git commit created: "created."' if committed else "Git repository is up to date; no new commit needed.")
         return 0
     except (ConfigError, OSError, UnicodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)

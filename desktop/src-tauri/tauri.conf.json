@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "STM CMake Forge",
-  "version": "0.1.2",
+  "version": "0.1.6",
   "identifier": "com.penpenqie.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -12,8 +12,10 @@
   "bundle": {
     "resources": {
       "../../bridge.py": "bridge.py",
+      "../../config_io.py": "config_io.py",
       "../../config_model.py": "config_model.py",
       "../../generator.py": "generator.py",
+      "../../project_git.py": "project_git.py",
       "../../scanner.py": "scanner.py"
     },
     "active": true,
@@ -30,8 +32,9 @@
     "windows": [
       {
         "title": "STM CMake Forge",
-        "width": 1180,
-        "height": 760,
+        "width": 1360,
+        "height": 960,
+        "preventOverflow": true,
         "minWidth": 820,
         "minHeight": 620
       }

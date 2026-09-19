@@ -26,7 +26,27 @@ npm install
 npm run tauri dev
 ```
 
-The host needs Python 3.10+, CMake, the selected generator, and ARM GNU tools. Git dependencies are fetched by CMake during configure. The first desktop release bundles the Python bridge modules, while Python remains a host prerequisite.
+The host needs Python 3.10+, Git, CMake, the selected generator, and ARM GNU tools. Git dependencies are fetched by CMake during configure. The first desktop release bundles the Python bridge modules, while Python remains a host prerequisite.
+
+After writing project files, both the desktop generator and CLI run `git init`,
+`git add .`, and `git commit -am "created."` in the output directory. Git must
+have `user.name` and `user.email` configured with your identity. Existing project
+repositories are reused; unchanged regeneration does not create an empty commit.
+All nonignored files in the output directory are included. The generated
+`.gitignore` excludes OS/IDE files, build artifacts, the configured build directory,
+and fetched Git dependencies. Preview (`--dry-run`) does not modify Git.
+If a Git step fails, generated files are retained and the error identifies the
+failed step; fix the Git configuration and generate again.
+
+Use **Export config** to save the current settings as a schema-v1 JSON file and
+**Import config** to restore them later. Imported configurations retain supported
+settings that are not exposed by the form, and config-relative paths are resolved
+against the selected JSON file. The same configuration format works with the CLI;
+see [`CONFIG_SCHEMA.md`](CONFIG_SCHEMA.md) for all fields and path rules.
+
+For Git dependencies whose `CMakeLists.txt` is below the repository root, set
+**SOURCE_SUBDIR** to that relative directory, such as `components/driver`.
+Leaving it blank uses the repository root (`.`).
 
 Verification:
 

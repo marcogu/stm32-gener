@@ -1,11 +1,12 @@
 {
   "name": "desktop",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "node --test tests/configuration.test.mjs",
     "preview": "vite preview",
     "generate-icons": "./scripts/generate_icons.sh",
     "tauri": "tauri"

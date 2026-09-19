@@ -143,6 +143,18 @@ class GeneratorTests(unittest.TestCase):
         self.assertNotIn("./build.sh", files[Path("README.md")])
         self.assertIn('artifact build/Debug', files[Path("README.md")])
 
+    def test_gitignore_includes_requested_patterns_and_configured_output_directories(self):
+        self.raw["generation"]["buildDir"] = "custom build"
+        self.raw["libraries"] = [{"name": "driver", "source": {
+            "type": "git", "repository": "https://example.invalid/driver.git", "ref": "main",
+            "checkoutDir": "third_party/driver"}}]
+        _, files = self.plan()
+        patterns = files[Path(".gitignore")].splitlines()
+        self.assertEqual(patterns, [
+            "custom build/", "cmake-build-*/", ".DS_Store", "*/DS_Store", "Thumbs.db", ".idea", ".project", ".vscode", ".codex",
+            "*.o", "*.d", "*.bin", "*.map", "*.hex", "*.lst", "*.crf", "*.swp", "*.swo", "third_party/driver/",
+        ])
+
     def test_environment_paths_fold_only_within_environment_root(self):
         env_root = self.root / "env"
         cases = (
@@ -222,6 +234,27 @@ class GeneratorTests(unittest.TestCase):
         self.raw["libraries"].append(copy.deepcopy(self.raw["libraries"][0]))
         with self.assertRaises(ConfigError):
             self.plan()
+
+    def test_git_cmake_subdir_defaults_and_nested_paths(self):
+        source = {
+            "type": "git", "repository": "https://example.invalid/driver.git",
+            "ref": "main", "checkoutDir": "third-party/driver",
+        }
+        for value, expected in ((None, "."), (".", "."), ("./", "."), ("components/driver cmake", "components/driver cmake")):
+            with self.subTest(cmakeSubdir=value):
+                self.raw["libraries"] = [{"name": "driver", "source": dict(source)}]
+                if value is not None:
+                    self.raw["libraries"][0]["source"]["cmakeSubdir"] = value
+                config, files = self.plan()
+                self.assertEqual(config["libraries"][0]["source"]["cmakeSubdir"], Path(expected))
+                self.assertIn(f'SOURCE_SUBDIR "{expected}"', files[Path("CMakeLists.txt")])
+                self.assertFalse(self.out.exists())
+
+        for value in ("", "../driver", "/driver", "C:/driver"):
+            with self.subTest(invalid_cmakeSubdir=value):
+                self.raw["libraries"][0]["source"]["cmakeSubdir"] = value
+                with self.assertRaisesRegex(ConfigError, r"source\.cmakeSubdir"):
+                    self.plan()
 
     def test_cli_dry_run_and_malformed_json(self):
         path = self.root / "config.json"
